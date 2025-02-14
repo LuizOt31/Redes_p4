@@ -1,3 +1,5 @@
+residuos = b''
+
 class CamadaEnlace:
     ignore_checksum = False
 
@@ -38,6 +40,7 @@ class CamadaEnlace:
         if self.callback:
             self.callback(datagrama)
 
+variavel = []
 
 class Enlace:
     def __init__(self, linha_serial):
@@ -48,17 +51,35 @@ class Enlace:
         self.callback = callback
 
     def enviar(self, datagrama):
-        # TODO: Preencha aqui com o código para enviar o datagrama pela linha
-        # serial, fazendo corretamente a delimitação de quadros e o escape de
-        # sequências especiais, de acordo com o protocolo CamadaEnlace (RFC 1055).
-        pass
+        datagrama = datagrama.replace(b'\xdb', b'\xdb\xdd')
+        datagrama = datagrama.replace(b'\xc0', b'\xdb\xdc')
+
+        self.linha_serial.enviar(b'\xc0' + datagrama + b'\xc0')
+        
 
     def __raw_recv(self, dados):
-        # TODO: Preencha aqui com o código para receber dados da linha serial.
-        # Trate corretamente as sequências de escape. Quando ler um quadro
-        # completo, repasse o datagrama contido nesse quadro para a camada
-        # superior chamando self.callback. Cuidado pois o argumento dados pode
-        # vir quebrado de várias formas diferentes - por exemplo, podem vir
-        # apenas pedaços de um quadro, ou um pedaço de quadro seguido de um
-        # pedaço de outro, ou vários quadros de uma vez só.
-        pass
+        global residuos
+        residuos += dados
+        delimiter = b'\xc0'
+
+        if delimiter in residuos:
+
+            lines = [e for e in residuos.split(delimiter)]
+            residuos = lines[-1]
+
+            for line in lines[:-1]:
+                line = line.replace(b'\xdb\xdd', b'\xdb')
+                line = line.replace(b'\xdb\xdc', b'\xc0')
+                if line == b'':
+                    continue
+
+                try:
+                    # Chamando o callback com tratamento de exceção
+                    self.callback(line)
+                except Exception as e:
+                    import traceback
+                    residuos = b'' 
+                    traceback.print_exc()  # Exibe erro no console para depuração
+
+        return
+
